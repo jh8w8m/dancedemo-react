@@ -1,0 +1,25 @@
+.innerVideo {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    filter: blur(10px) brightness(40%);
+}
+
+.videoButton {
+    position: fixed;
+    bottom: 30px;
+    z-index: 1000;
+}
+
+.judgeArea {
+    border: 1px solid black;
+    position: fixed;
+    width: 100%;
+    height: 8vh;
+    background-color: aqua;
+    opacity: 0.15;
+    bottom: 12.5vh;
+    z-index: 2000;
+}
