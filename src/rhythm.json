@@ -1,0 +1,14 @@
+[
+    {
+        "start": 10,
+        "type": "left-single"
+    },
+    {
+        "start": 20,
+        "type": "right-single"
+    },
+    {
+        "start": 40,
+        "type": "mid-single"
+    }
+]
