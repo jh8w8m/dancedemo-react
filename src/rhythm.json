@@ -4,11 +4,15 @@
         "type": "left-single"
     },
     {
-        "start": 20,
+        "start": 14,
         "type": "right-single"
     },
     {
-        "start": 40,
+        "start": 17,
         "type": "mid-single"
+    },
+    {
+        "start": 17,
+        "type": "right-single"
     }
 ]

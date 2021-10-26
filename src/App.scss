@@ -13,7 +13,7 @@
 
 .animateButton {
     position: fixed;
-    bottom: 10px;
+    bottom: 40px;
     z-index: 1000;
 }
 .animateButtonLeft {
@@ -24,4 +24,10 @@
 }
 .animateButtonRight {
     left: 80px;
+}
+
+.readJson {
+    position: fixed;
+    bottom: 20px;
+    z-index: 1000;
 }

@@ -8,7 +8,7 @@ import Counter from './Counter';
 import rhythm from './rhythm.json';
 import TWEEN from '@tweenjs/tween.js';
 
-let downTimer = 40;
+let downTimer = 10; // default: 2s
 
 // function App() {
 //     const mount = useRef<HTMLDivElement>(null)
@@ -505,6 +505,7 @@ let downTimer = 40;
 type blockInfo = {
     startTick: number,
     type: string,
+    status: string,
 }
 
 
@@ -582,6 +583,7 @@ const App = () => {
             camera.position.x = 0;
             camera.position.y = 1;
             camera.position.z = 12.5;
+
             // camera.position.x = 3;
             // camera.position.y = 0.5;
             // camera.position.z = 1;
@@ -622,23 +624,47 @@ const App = () => {
             const handleSpaceDown = (e:KeyboardEvent) => {
                 //console.log(e.key);
                 e.preventDefault();
-                if(e.key == ' ' && (currentTickID.current < tickQueue.length)) {
-                    //console.log("press space"); 
-                    console.log(tickQueue[currentTickID.current].startTick);
-                    console.log(currentTicks.current);
-                    let judgeTick = tickQueue[currentTickID.current].startTick;
+                // if(e.key == ' ' && (currentTickID.current < tickQueue.length)) {
+                //     // 20s 下落 下边在上 18.54 中间 19.26 上边在下 20.1
+                //     // 上边界 9.341 9.674 下边界 11.01 12.34 0.3 1.3
+                //     console.log(tickQueue[currentTickID.current].startTick);
+                //     console.log(currentTicks.current);
+                //     let judgeTick = tickQueue[currentTickID.current].startTick;
+                //     let current = currentTicks.current;
+                //     // 判定范围 400ms 判定中 1s-400ms 判定乱按不中
+                //     let judgeBorder1 = current - 0.04*downTimer*3; 
+                //     let judgeBorder2 = current - 0.04*downTimer;
+                //     let judgeBorder3 = current + 0.05*downTimer;
+                //     let judgeBorder4 = current + 0.05*downTimer*3;   
+                //     if (judgeTick >= judgeBorder2 && judgeTick <= judgeBorder3) {
+                //         setScore((preState)=>{return preState+1}); // 防止 state 丢失
+                //         currentTickID.current++;
+                //     }
+                //     else if ((judgeTick >= judgeBorder1 && judgeTick < judgeBorder2) || (judgeTick > judgeBorder3 && judgeTick <= judgeBorder4)) {
+                //         currentTickID.current++; // 距离太近时没中，所以id要自增，不会再去判断这个音符
+                //     }
+                // }
+                if(e.key == ' ' && tickQueue.length && tickQueue[0].status == 'pending') {
+                    // pending状态有两种情况，一种是perfect命中，则之后不会对该音符进行判断，直到它被卸载，另一种是miss，不会加分，也不会被判断，直到它被卸载
+                    // 如果没有操作，最后pending状态的音符也会被正常卸载，卸载后即可判断下一个音符
+                    // 20s 下落 下边在上 18.54 中间 19.26 上边在下 20.1
+                    // console.log(tickQueue[0].startTick);
+                    // console.log(currentTicks.current);
+
+                    let judgeTick = tickQueue[0].startTick;
                     let current = currentTicks.current;
                     // 判定范围 400ms 判定中 1s-400ms 判定乱按不中
-                    let judgeBorder1 = current - 0.5; 
-                    let judgeBorder2 = current - 0.05;
-                    let judgeBorder3 = current + 0.05;
-                    let judgeBorder4 = current + 0.5;   
+                    let judgeBorder1 = current - 0.04*downTimer*3; 
+                    let judgeBorder2 = current - 0.04*downTimer;
+                    let judgeBorder3 = current + 0.05*downTimer;
+                    let judgeBorder4 = current + 0.05*downTimer*3;   
                     if (judgeTick >= judgeBorder2 && judgeTick <= judgeBorder3) {
-                        setScore((preState)=>{return preState+1});
-                        currentTickID.current++;
+                        setScore((preState)=>{return preState+1}); // 防止 state 丢失
+                        tickQueue[0].status = 'perfect';
+                        //console.log("命中");
                     }
                     else if ((judgeTick >= judgeBorder1 && judgeTick < judgeBorder2) || (judgeTick > judgeBorder3 && judgeTick <= judgeBorder4)) {
-                        currentTickID.current++; // 距离太近时没中，所以id要自增，不会再去判断这个音符
+                        tickQueue[0].status = 'miss' // 距离太近时没中，所以id要自增，不会再去判断这个音符
                     }
                 }
             }
@@ -727,36 +753,37 @@ const App = () => {
         }
         
 
-        const geometry = new BoxGeometry(0.8, 0.03, 0.7) // 盒体的长宽高
+        const geometry = new BoxGeometry(0.8, 0.03, 0.4) // 盒体的长宽高
         const material = new MeshBasicMaterial({ color: 0xDC143C })
         let block = new Mesh(geometry, material);
         block.name = "downBox";
-        // // block.translateX(1);
-        // // block.translateY(0.5);
-        // // block.rotateX(0.04);
+        // block.translateX(1);
+        // block.translateY(0.5);
+        // block.rotateX(0.04);
         // //group.add(block);
 
         // 设置动画
         let times = [0, downTimer]; //关键帧时间数组，离散的时间点序列
-        let values = [blockStartPosition, 0.06, 0, blockStartPosition, -0.5, 11]; //与时间点对应的值组成的数组
+        let values = [blockStartPosition, 0.06, 0.15, blockStartPosition, -0.4, 11.2]; //与时间点对应的值组成的数组
         let posTrack = new KeyframeTrack('downBox.position', times, values);
+        //var colorKF = new KeyframeTrack('downBox.material.color', times, [220, 20, 60, 220, 20, 60]);
 
         // duration决定了默认的播放时间，一般取所有帧动画的最大时间
         // duration偏小，帧动画数据无法播放完，偏大，播放完帧动画会继续空播放
         let clip = new AnimationClip("default", downTimer, [posTrack])
-        //group.add(block);
-        //console.log(group.children)
+
 
         scene.add(block);
         //scene.add(group);
 
         const handleAnimationFinished = (e:any) => { // 实在是没找到类型
-            //console.log(e.target);
+            //console.log("finish");
             if (mixerQueue.has(e.target)){
                 mixerQueue.delete(e.target);
             }
-            
+            //console.log("回收")
             //console.log(block);
+            tickQueue.shift();
             block.geometry.dispose();
             block.material.dispose();
             scene.remove(block);
@@ -770,16 +797,18 @@ const App = () => {
         AnimationAction.loop = LoopOnce; //不循环播放
 
         // json文件中存入的应该是正好到达判定中心的位置，也就是开始渲染的tick + (9.4)*dropTime/12
-        tickQueue.push({startTick: currentTicks.current+(10.65)*downTimer/11, type:'singleBlock'})
+        tickQueue.push({startTick: currentTicks.current+((9.3)*downTimer/10), type:'singleBlock', status:"pending"})
+        // 上边界 9.341 9.674 下边界 11.01 12.34
 
         AnimationAction.play(); //开始播放
         mixerQueue.set(dropMixer, true);
-        
-        dropMixer.addEventListener('finished', handleAnimationFinished);
 
+        dropMixer.addEventListener('finished', handleAnimationFinished);
+        
+        //console.log("listen")
         setTimeout(() => {
             dropMixer.removeEventListener('finished', handleAnimationFinished);
-        }, downTimer*2);
+        }, downTimer*2*1000);
 
         // 解决空格键重复触发按钮点击事件，实际项目中不需要处理
         let btn = e.target as HTMLButtonElement;
@@ -812,6 +841,10 @@ const App = () => {
         // }
     }
 
+    const handleJSONReader = () => {
+        //rhythm.reduce();
+    }
+
     
     return(
         <>
@@ -821,6 +854,7 @@ const App = () => {
             <button className="animateButton animateButtonLeft" onClick={(e) => {handleGenerate(e, 'l')}}>动画左</button>
             <button className="animateButton animateButtonMid" onClick={(e) => {handleGenerate(e, 'm')}}>动画中</button>
             <button className="animateButton animateButtonRight" onClick={(e) => {handleGenerate(e, 'r')}}>动画右</button>
+            <button className="readJson" onClick={handleJSONReader}>生成谱面</button>
         </>
     ) 
 }
