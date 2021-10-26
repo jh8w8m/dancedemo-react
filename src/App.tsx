@@ -8,6 +8,8 @@ import Counter from './Counter';
 import rhythm from './rhythm.json';
 import TWEEN from '@tweenjs/tween.js';
 
+let downTimer = 40;
+
 // function App() {
 //     const mount = useRef<HTMLDivElement>(null)
 
@@ -500,6 +502,11 @@ import TWEEN from '@tweenjs/tween.js';
 //     ) 
 // }
 
+type blockInfo = {
+    startTick: number,
+    type: string,
+}
+
 
 type sceneRef = {
     scene: Scene,
@@ -508,6 +515,8 @@ type sceneRef = {
     group: Group,
     stats: Stats,
     mixer: AnimationMixer,
+    mixerQueue: Map<AnimationMixer, boolean>,
+    tickQueue: Array<blockInfo>,
 }
 
 
@@ -516,9 +525,9 @@ const App = () => {
     const mount = useRef<HTMLDivElement>(null)
     const controls = useRef<sceneRef | null>(null);
     const [ score, setScore ] = useState(0);
+    const currentTicks = useRef<number>(0);
+    const currentTickID = useRef<number>(0);
     
-    
-
     useEffect(() => {
         if (!mount.current) {
             throw Error("null ref");
@@ -538,8 +547,8 @@ const App = () => {
 
             
             // 创建一个网格对象
-            const geometry = new BoxGeometry(0.8, 0.1, 12) // 盒体的长宽高
-            // 判定区域 z轴 8.8 ~ 10
+            const geometry = new BoxGeometry(0.8, 0.1, 10) // 盒体的长宽高
+            // 判定区域 z轴 8.2 9 
             const material = new MeshBasicMaterial({ color: 0xff00ff })
             //const cube = new Mesh(geometry, material)
             
@@ -552,15 +561,15 @@ const App = () => {
             rail1.rotateX(0.05); // 内部为弧度，弧度计算 (角度/180)*PAI = 弧度
             rail2.rotateX(0.05);
             rail3.rotateX(0.05);
-            rail1.translateZ(5);
-            rail2.translateZ(5);
-            rail3.translateZ(5);
+            rail1.translateZ(6);
+            rail2.translateZ(6);
+            rail3.translateZ(6);
 
 
             //scene.add(cube)
-            scene.add(rail1);
-            scene.add(rail2);
-            scene.add(rail3);
+            // scene.add(rail1);
+            // scene.add(rail2);
+            // scene.add(rail3);
             // 设置背景为透明色
             renderer.setClearColor('0xEEEEEE', 0.0)
             renderer.setSize(width, height)
@@ -574,13 +583,18 @@ const App = () => {
             camera.position.y = 1;
             camera.position.z = 12.5;
             // camera.position.x = 3;
-            // camera.position.y = -0.5;
-            // camera.position.z = 11;
+            // camera.position.y = 0.5;
+            // camera.position.z = 1;
             // camera.rotateY(20);
+
+            // camera.position.x = 0;
+            // camera.position.y = 2;
+            // camera.position.z = 0;
+            // camera.rotateX(-1.5);
 
             // 创建 downBlock 的 group
             let group = new Group();
-
+            group.add(rail1, rail2, rail3);
             
 
             
@@ -606,8 +620,26 @@ const App = () => {
             // stats.begin();
 
             const handleSpaceDown = (e:KeyboardEvent) => {
-                if(e.key == 'Space') {
-
+                //console.log(e.key);
+                e.preventDefault();
+                if(e.key == ' ' && (currentTickID.current < tickQueue.length)) {
+                    //console.log("press space"); 
+                    console.log(tickQueue[currentTickID.current].startTick);
+                    console.log(currentTicks.current);
+                    let judgeTick = tickQueue[currentTickID.current].startTick;
+                    let current = currentTicks.current;
+                    // 判定范围 400ms 判定中 1s-400ms 判定乱按不中
+                    let judgeBorder1 = current - 0.5; 
+                    let judgeBorder2 = current - 0.05;
+                    let judgeBorder3 = current + 0.05;
+                    let judgeBorder4 = current + 0.5;   
+                    if (judgeTick >= judgeBorder2 && judgeTick <= judgeBorder3) {
+                        setScore((preState)=>{return preState+1});
+                        currentTickID.current++;
+                    }
+                    else if ((judgeTick >= judgeBorder1 && judgeTick < judgeBorder2) || (judgeTick > judgeBorder3 && judgeTick <= judgeBorder4)) {
+                        currentTickID.current++; // 距离太近时没中，所以id要自增，不会再去判断这个音符
+                    }
                 }
             }
 
@@ -618,28 +650,39 @@ const App = () => {
 
             // group作为混合器的参数，可以播放group中所有子对象的帧动画
             scene.add(group);
-            var mixer = new AnimationMixer(group);
-            
+            let mixer = new AnimationMixer(group);
+            let mixerQueue = new Map<AnimationMixer, boolean>();
+            let tickQueue:Array<blockInfo> = [];
 
-            controls.current = { scene, renderer, camera, group, stats, mixer}; // 获取scene的引用
+            controls.current = { scene, renderer, camera, group, stats, mixer, mixerQueue, tickQueue}; // 获取scene的引用
             let clock = new Clock();
             let timeS = 0;
-            let tick = 0;
+
             let FPS = 100;
             let renderInterval = 1 / FPS;
 
             const render = () => {
                 let T = clock.getDelta();
-                tick += T;
+                currentTicks.current += T;
+                //console.log(clock.elapsedTime);
                 timeS = timeS + T;
                 if (timeS >= renderInterval) {
-                    renderer.render(scene, camera); //执行渲染操作
                     mixer.update(T);
+                    //console.log(mixer)
+                    if (mixerQueue.size != 0) {
+                        for (let i of Array.from(mixerQueue.keys())) {
+                            i.update(T);
+                            //console.log(i)
+                        }
+                    }
+                    renderer.render(scene, camera); //执行渲染操作
                     //console.log("here");
                     //TWEEN.update(T);
                     timeS = 0;
                     stats.update();
+                    //console.log(Array.from(mixerQueue.keys()));
                 }
+                
                 requestAnimationFrame(render);    
             }
             
@@ -648,55 +691,20 @@ const App = () => {
             return () => { // 清除副作用
                 let realMount = mount.current as HTMLDivElement;
                 window.removeEventListener('resize', handleResize);
-                window.removeEventListener('keydown', handleSpaceDown);
+                window.removeEventListener('keypress', handleSpaceDown);
                 //orbitControls.removeEventListener('change', render);
 
                 realMount.removeChild(renderer.domElement);
-        
-                scene.remove(rail1);
-                scene.remove(rail2);
-                scene.remove(rail3);
+
                 geometry.dispose();
                 material.dispose();
-
+                scene.remove(group);
                 // stats.end();
             }
         }
-
-        
-
     }, [])
-    
-    // const render = () => {
-    //     let {
-    //         scene,
-    //         renderer,
-    //         camera,
-    //         stats,
-    //     } = controls.current as sceneRef;
 
-    //     renderer.render(scene, camera);
-    //     stats.update();
-
-    //     let T = clock.getDelta();
-    //     tick += T;
-    //     timeS = timeS + T;
-    //     console.log(tick);
-        
-    //     if (timeS >= renderInterval) {
-    //         renderer.render(scene, camera); //执行渲染操作
-    //         mixer.update(T);
-    //         //console.log("here");
-    //         //TWEEN.update(T);
-    //         timeS = 0;
-    //         stats.update();
-    //     }
-        
-    //     requestAnimationFrame(render);     
-
-    // }
-
-    const handleGenerate = (direction: string) => {
+    const handleGenerate = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>, direction: string) => {
         let {
             scene,
             renderer,
@@ -704,11 +712,12 @@ const App = () => {
             group,
             stats,
             mixer,
+            mixerQueue,
+            tickQueue,
         } = controls.current as sceneRef;
 
 
         let blockStartPosition = 0;
-        let downTimer = 30;
 
         switch(direction) {
             case 'l': blockStartPosition = -1; break;
@@ -720,8 +729,8 @@ const App = () => {
 
         const geometry = new BoxGeometry(0.8, 0.03, 0.7) // 盒体的长宽高
         const material = new MeshBasicMaterial({ color: 0xDC143C })
-        const block = new Mesh(geometry, material);
-        // block.name = "downBox";
+        let block = new Mesh(geometry, material);
+        block.name = "downBox";
         // // block.translateX(1);
         // // block.translateY(0.5);
         // // block.rotateX(0.04);
@@ -730,30 +739,51 @@ const App = () => {
         // 设置动画
         let times = [0, downTimer]; //关键帧时间数组，离散的时间点序列
         let values = [blockStartPosition, 0.06, 0, blockStartPosition, -0.5, 11]; //与时间点对应的值组成的数组
-        // 创建位置关键帧对象：0时刻对应位置0, 0, 0   10时刻对应位置150, 0, 0
         let posTrack = new KeyframeTrack('downBox.position', times, values);
 
         // duration决定了默认的播放时间，一般取所有帧动画的最大时间
         // duration偏小，帧动画数据无法播放完，偏大，播放完帧动画会继续空播放
-        var clip = new AnimationClip("default", downTimer, [posTrack])
-        group.add(block);
+        let clip = new AnimationClip("default", downTimer, [posTrack])
+        //group.add(block);
         //console.log(group.children)
-        
+
+        scene.add(block);
         //scene.add(group);
 
-        // const handleAnimationFinished = () => {
-        //     group.remove(block);
-        // }
+        const handleAnimationFinished = (e:any) => { // 实在是没找到类型
+            //console.log(e.target);
+            if (mixerQueue.has(e.target)){
+                mixerQueue.delete(e.target);
+            }
+            
+            //console.log(block);
+            block.geometry.dispose();
+            block.material.dispose();
+            scene.remove(block);
+        }
 
-        //var mixer = new AnimationMixer(group);
+        let dropMixer = new AnimationMixer(block);
         // 剪辑clip作为参数，通过混合器clipAction方法返回一个操作对象AnimationAction
-        var AnimationAction = mixer.clipAction(clip);
+        let AnimationAction = dropMixer.clipAction(clip);
         //通过操作Action设置播放方式
-        AnimationAction.timeScale = downTimer; //默认1，可以调节播放速度
+        AnimationAction.timeScale = 1; //默认1，可以调节播放速度
         AnimationAction.loop = LoopOnce; //不循环播放
+
+        // json文件中存入的应该是正好到达判定中心的位置，也就是开始渲染的tick + (9.4)*dropTime/12
+        tickQueue.push({startTick: currentTicks.current+(10.65)*downTimer/11, type:'singleBlock'})
+
         AnimationAction.play(); //开始播放
+        mixerQueue.set(dropMixer, true);
         
-        // mixer.addEventListener('finished', handleAnimationFinished);
+        dropMixer.addEventListener('finished', handleAnimationFinished);
+
+        setTimeout(() => {
+            dropMixer.removeEventListener('finished', handleAnimationFinished);
+        }, downTimer*2);
+
+        // 解决空格键重复触发按钮点击事件，实际项目中不需要处理
+        let btn = e.target as HTMLButtonElement;
+        btn.blur();
 
         // const render = () => {
         //     renderer.render(scene, camera);
@@ -781,22 +811,16 @@ const App = () => {
         //     frameId = null
         // }
     }
-    // useEffect(() => {
-    //     if (isAnimating && controls.current) {
-    //         (controls.current).start()
-    //     } else if (!isAnimating && controls.current){
-    //         controls.current.stop()
-    //     }
-    // }, [isAnimating])
+
     
     return(
         <>
             <div className="vis" ref={mount}/>
             <Video src={require('./test4.mp4').default}  autoPlay={false} loop={true}/>
             <Counter counts={score}></Counter>
-            <button className="animateButton animateButtonLeft" onClick={() => {handleGenerate('l')}}>动画左</button>
-            <button className="animateButton animateButtonMid" onClick={() => {handleGenerate('m')}}>动画中</button>
-            <button className="animateButton animateButtonRight" onClick={() => {handleGenerate('r')}}>动画右</button>
+            <button className="animateButton animateButtonLeft" onClick={(e) => {handleGenerate(e, 'l')}}>动画左</button>
+            <button className="animateButton animateButtonMid" onClick={(e) => {handleGenerate(e, 'm')}}>动画中</button>
+            <button className="animateButton animateButtonRight" onClick={(e) => {handleGenerate(e, 'r')}}>动画右</button>
         </>
     ) 
 }
